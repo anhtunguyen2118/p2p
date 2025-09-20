@@ -1,50 +1,124 @@
-(() => {
+(async () => {
   'use strict';
 
-  let mode = 1; // 1 = chạy tool, 2 = chỉ báo lỗi
+  // === CONFIG counter (Google Apps Script) ===
+  const BASE = "https://script.google.com/macros/s/AKfycbx8LFQdItW49gFj1xcTRSHPnpxP08Anw4QlHrxUx6AsVNd7quSRXe2Fj3RhGWvochsw/exec";
+  const KEY  = "count";
+  const THRESHOLD = 15; // khởi động khi current < 15; nếu > 15 thì dừng
 
-  if (mode === 2) {
-    console.error("❌ Đã limit");
-    return;
+  // -- helpers --
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  async function getCount() {
+    try {
+      const r = await fetch(`${BASE}?key=${encodeURIComponent(KEY)}`);
+      const j = await r.json();
+      return Number(j.count) || 0;
+    } catch {
+      // nếu lỗi đọc, cho là 0 (giữ nguyên như trước)
+      return 0;
+    }
   }
 
-  let counter = 0; // Đếm số lần thao tác thành công
+  async function incrementCounter() {
+    try {
+      const r = await fetch(`${BASE}?key=${encodeURIComponent(KEY)}`, { method: 'POST' });
+      const j = await r.json().catch(() => ({}));
+      console.log('+1 ', j.count ?? '');
+    } catch (e) {
+      console.warn('counter error', e);
+    }
+  }
 
-  async function run() {
-    while (true) {
+  function normalizeHref(el) {
+    const raw = el.getAttribute('href') || el.href || '';
+    try { return new URL(raw, location.href).href; } catch { return raw; }
+  }
+
+  function findPaymentAnchor() {
+    return [...document.querySelectorAll('a[href]')].find(a => {
+      const t = (a.textContent || '').replace(/\s+/g, ' ').trim();
+      return t.includes('Tôi muốn thanh toán lệnh này');
+    });
+  }
+
+  function findStatusAnchors() {
+    return [...document.querySelectorAll('a[href]')].filter(a => {
+      const t = (a.textContent || '').replace(/\s+/g, ' ').trim();
+      return t.includes('Thanh Sinh') && t.includes('đang thanh toán');
+    });
+  }
+
+  let running = true;
+  window.stopPaymentTool = () => { running = false; console.warn('⛔ stopped manually'); };
+
+  async function run(current) {
+    while (running) {
       try {
-        const paymentButton = [...document.querySelectorAll('a')]
-          .find(btn => (btn.textContent || '').includes('Tôi muốn thanh toán lệnh này'));
+        // 1) Tìm nút & lấy href trước khi click
+        const paymentAnchor = findPaymentAnchor();
 
-        if (paymentButton) {
-          paymentButton.click();
-          counter++;
-          console.log(`${counter}. ✅ Đã thao tác đơn thành công`);
+        if (paymentAnchor) {
+          const origHref = normalizeHref(paymentAnchor);
+          // console.log('🔗 HREF trước khi click:', origHref);
 
-          // Nhấn Enter 10 lần, mỗi lần cách nhau 30ms
+          // 2) Click nút
+          paymentAnchor.click();
+          console.log('✅ Đã thao tác đơn thành công');
+
+          // 3) Nhấn Enter 10 lần, cách nhau 30ms
           for (let i = 0; i < 10; i++) {
             const enterEvent = new KeyboardEvent('keydown', {
-              key: 'Enter',
-              code: 'Enter',
-              keyCode: 13,
-              which: 13,
-              bubbles: true
+              key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true
             });
             (document.activeElement || document.body).dispatchEvent(enterEvent);
-            await new Promise(r => setTimeout(r, 30));
+            await sleep(20);
           }
 
-          // Chờ 2 giây rồi lặp lại
-          await new Promise(r => setTimeout(r, 2000));
+          // 4) Chờ 2s rồi kiểm tra trạng thái
+          await sleep(3000);
+
+          // 5) Tìm anchors "Thanh Sinh ... đang thanh toán"
+          const statusAnchors = findStatusAnchors();
+
+          // 6) So sánh href: CHỈ khi trùng mới +1
+          const matched = statusAnchors.some(a => normalizeHref(a) === origHref);
+
+          if (matched) {
+            // console.log('✅ Khớp href với "Thanh Sinh ... đang thanh toán" → +1');
+            await incrementCounter();      // gửi +1 lên Apps Script
+
+            // 🔁 LẤY LẠI current TỪ SHEET (KHÔNG cộng tay nữa)
+            current = await getCount();
+
+            // 7) Kiểm tra ngưỡng sau khi cập nhật current
+            if (current > THRESHOLD) {
+              console.error('Đã lấy đủ đơn hôm nay, đang dừng....');
+              running = false;
+              break; // dừng tool
+            }
+          } else {
+            // console.log('ℹ️ Không khớp href hoặc chưa thấy trạng thái "Thanh Sinh ... đang thanh toán".');
+          }
+
+          // 8) Lặp lại sau 2s như cũ
+          await sleep(2000);
+
         } else {
           console.log('Đang chờ đơn...');
-          await new Promise(r => setTimeout(r, 120));
+          await sleep(100);
         }
-      } catch (e) {
-        // im lặng
+      } catch {
+        // im lặng, tiếp tục vòng lặp
       }
     }
   }
 
-  run();
+  // === GATE khởi động: chỉ chạy nếu current ban đầu < 15 ===
+  let current = await getCount();
+  if (current <= THRESHOLD) {
+    run(current);
+  } else {
+    console.error('Đã lấy đủ đơn hôm nay, đang dừng....');
+  }
 })();
