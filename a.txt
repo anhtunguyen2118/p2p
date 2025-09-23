@@ -4,7 +4,7 @@
   // === CONFIG counter (Google Apps Script) ===
   const BASE = "https://script.google.com/macros/s/AKfycbx8LFQdItW49gFj1xcTRSHPnpxP08Anw4QlHrxUx6AsVNd7quSRXe2Fj3RhGWvochsw/exec";
   const KEY  = "count";
-  const THRESHOLD = 15; // khởi động khi current < 15; nếu > 15 thì dừng
+  const THRESHOLD = 11; // khởi động khi current < 15; nếu > 15 thì dừng
 
   // -- helpers --
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -45,7 +45,7 @@
   function findStatusAnchors() {
     return [...document.querySelectorAll('a[href]')].filter(a => {
       const t = (a.textContent || '').replace(/\s+/g, ' ').trim();
-      return t.includes('Thanh Sinh') && t.includes('đang thanh toán');
+      return t.includes('HiHizz') && t.includes('đang thanh toán');
     });
   }
 
@@ -85,7 +85,7 @@
           const matched = statusAnchors.some(a => normalizeHref(a) === origHref);
 
           if (matched) {
-            // console.log('✅ Khớp href với "Thanh Sinh ... đang thanh toán" → +1');
+            // console.log('✅ Khớp href với "HiHizz ... đang thanh toán" → +1');
             await incrementCounter();      // gửi +1 lên Apps Script
 
             // 🔁 LẤY LẠI current TỪ SHEET (KHÔNG cộng tay nữa)
