@@ -3,7 +3,7 @@
 
   // === CONFIG counter (Google Apps Script) ===
   const BASE = "https://script.google.com/macros/s/AKfycbx8LFQdItW49gFj1xcTRSHPnpxP08Anw4QlHrxUx6AsVNd7quSRXe2Fj3RhGWvochsw/exec";
-  const KEY  = "count";
+  const KEY  = "hihizz";
   const THRESHOLD = 11; // khởi động khi current < 15; nếu > 15 thì dừng
 
   // -- helpers --
