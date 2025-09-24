@@ -46,10 +46,13 @@
   function findStatusAnchors() {
     return [...document.querySelectorAll('a[href]')].filter(a => {
       const t = (a.textContent || '').replace(/\s+/g, ' ').trim();
-      return t.includes('HiHizz') && t.includes('đang thanh toán');
+      return (
+        (t.includes('HiHizz') && t.includes('đang thanh toán')) ||
+        (t.includes('HiHi')   && t.includes('đang thanh toán')) ||
+        (t.includes('Yến')    && t.includes('đang thanh toán'))
+     );
     });
   }
-
   let running = true;
   window.stopPaymentTool = () => { running = false; console.warn('⛔ stopped manually'); };
 
